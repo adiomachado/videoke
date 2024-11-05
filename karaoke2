@@ -1,0 +1,22 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from moviepy.editor import VideoFileClip
+
+def play_video():
+    file_path = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
+    if file_path:
+        video = VideoFileClip(file_path)
+        video.preview()
+        messagebox.showinfo("Pronto", f"Reprodução do arquivo {file_path} concluída!")
+
+# Configuração da janela principal
+root = tk.Tk()
+root.title("Reprodutor de Vídeo MP4")
+root.geometry("400x200")
+
+# Adicionando o botão
+button = tk.Button(root, text="Selecionar e Reproduzir Vídeo", command=play_video)
+button.pack(pady=50)
+
+# Iniciando o loop da aplicação
+root.mainloop()

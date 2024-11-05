@@ -1,0 +1,339 @@
+    # -*- coding: cp1252 -*-
+from numba import jit
+import pyximport; pyximport.install()
+import sys
+from audiolazy import (tostream, AudioIO, freq2str, sHz, chunks, lowpass, envelope, pi, thub, Stream, maverage)
+from numpy.fft import rfft
+import matplotlib
+import matplotlib.pyplot as plt
+import ttk
+import pyaudio
+import pylab
+import random
+
+#-----------------------------------------------------------------------------#
+#funcoes de calculo do pitch--------------------------------------------------#
+
+#variaveis do pyaudio
+f_a=440.0
+
+chunk=2048
+FORMAT=pyaudio.paInt16
+CHANNELS=1
+RATE=44100
+RECORD_S=2.
+WAVE_OUTPUT_NAME="sing.wav"
+
+
+pa=pyaudio.PyAudio()
+
+
+
+# pylab.ioff()
+stream=pa.open(format=FORMAT,
+             channels=CHANNELS,
+             rate=RATE,
+             input=True,
+             frames_per_buffer=chunk)
+
+#calcula a frequencia 
+def real_freq():
+    all_v=[]
+    all_data=""
+    x_array=numpy.array([],dtype=numpy.int16)
+    n_chunks=int(RECORD_S*RATE/chunk)
+    npts=n_chunks*chunk
+
+    for i in range(0, n_chunks):
+        try:
+            data=stream.read(chunk)
+        except:
+            data=stream.read(chunk)
+        all_v.append(data)
+        all_data += data
+        x=numpy.fromstring(data, dtype=numpy.int16)
+        numpy.append(x_array,x)
+
+    all_x=numpy.fromstring(all_data, dtype=numpy.int16)
+
+    #p2p = 2.*numpy.sqrt(2.*all_x.var())
+
+    z = abs(pylab.fft(all_x))
+    max_arg = numpy.argmax(z[0:npts/2])
+    #peak = z[max_arg]   
+
+    freq = pylab.arange(npts)*1.*RATE/npts
+    fmax = freq[max_arg] + 0.01
+    fmax = round(fmax, 2)
+    return fmax
+
+
+def limiter(sig, threshold=.1, size=256, env=envelope.rms, cutoff=pi/2048):
+    sig = thub(sig, 2)
+    return sig * Stream( 1. if el <= threshold else threshold / el for el in maverage(size)(env(sig, cutoff=cutoff)) )
+
+@tostream
+def dft_pitch(sig, size=2048, hop=None):
+    for blk in Stream(sig).blocks(size=size, hop=hop):
+        dft_data = rfft(blk)
+        idx, vmax = max(enumerate(dft_data), key=lambda el: abs(el[1]) / (2 * el[0] / size + 1))
+        yield 2 * pi * idx / size
+
+def pitch_from_mic(upd_time_in_ms):
+    rate = 44100
+    s, Hz = sHz(rate)
+
+    api = sys.argv[1] if sys.argv[1:] else None # Choose API via command-line
+    chunks.size = 1 if api == "jack" else 16
+
+    with AudioIO(api) as recorder:
+        snd = recorder.record(rate=rate)
+        sndlow = lowpass(400 * Hz)(limiter(snd, cutoff=20 * Hz))
+        hop = int(upd_time_in_ms * 1e-3 * s)
+        for pitch in freq2str(dft_pitch(sndlow, size=2*hop, hop=hop) / Hz):
+            first_cut = pitch.find('+')
+            second_cut = pitch.find('-')
+            if ((first_cut != -1) and (second_cut == -1)):
+                yield pitch[0:first_cut]
+            elif ((first_cut == -1) and (second_cut != -1)):
+                yield pitch[0:second_cut]
+
+#funcao que define a afinacao (semelhante com a funcao pitch_from_mic())
+def pitch_tune(upd_time_in_ms):
+    #calcula o pitch
+    rate = 44100
+    s, Hz = sHz(rate)
+
+    api = sys.argv[1] if sys.argv[1:] else None # Choose API via command-line
+    chunks.size = 1 if api == "jack" else 16
+
+    with AudioIO(api) as recorder:
+        snd = recorder.record(rate=rate)
+        sndlow = lowpass(400 * Hz)(limiter(snd, cutoff=20 * Hz))
+        hop = int(upd_time_in_ms * 1e-3 * s)
+
+        #calculado o pitch, le o valor encontrado e retorna a afinacao
+        for tune in freq2str(dft_pitch(sndlow, size=2*hop, hop=hop) / Hz):
+            first_cut = tune.find('+')
+            second_cut = tune.find('-')
+            third_cut = tune.find('%')
+            if ((first_cut != -1) and (second_cut == -1)):
+                fourth_cut = tune[first_cut:third_cut]
+                flat_one = fourth_cut[1:]
+                flat_one = float(flat_one)
+
+               #le os valores e retorna a afinacao
+                if (flat_one <= 20):
+                    yield 'Afinado'
+                elif ((flat_one > 20) and (flat_one <= 35)):
+                    yield 'Lig. Desafinado'
+                elif (flat_one > 35):
+                    yield 'Muito Desafinado'              
+            elif ((first_cut == -1) and (second_cut != -1)):
+                fifth_cut = tune[second_cut:third_cut]
+                flat_two = fifth_cut[1:]
+                flat_two = float(flat_two)
+                #le os valores e retorna a afinacao
+                if (flat_two <= 20):
+                    yield 'Afinado'
+                elif ((flat_two > 20) and (flat_two <= 35)):
+                    yield 'Lig. Desafinado'
+                elif (flat_two > 35):
+                    yield 'Muito Desafinado'
+
+# ----------------------
+#Parte grafica do codigo
+# ----------------------
+
+if __name__ == "__main__":
+    from Tkinter import *
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    import threading
+    import re
+
+    matplotlib.use('TkAgg')
+
+    #comeca a janela do programa
+    root = Tk()
+
+    #define o tamanho da janela
+    root.minsize(1200,500)
+    root.maxsize(1200,500)
+    root.configure(background='#d9d9d9')
+    root.focus_force()
+
+    #titulo da janela (outer widget)
+    root.title("SingMeter")
+
+    #stringvars
+    pitch_value = StringVar()
+    note_value = StringVar()
+    no_tone_deaf = StringVar()
+
+   #-----Frames secundaria(outer widgets)
+    #frame do pitch
+    sing_frame = LabelFrame(root, text='Informacão quantitativa', width=400, height=400, background='#d9d9d9')
+    sing_frame.place(x = 10, y = 30)
+
+    #frame da nota
+    graph_frame = LabelFrame(root, text='Gráfico', width=700, height=400, background='#d9d9d9')
+    graph_frame.place(x = 450, y = 30)
+
+    #listas e dicionarios de frequencias e notas (torna a base de dados propia para leitura)
+    database_dict = {}
+    freq_list = []
+
+    #funcoes do grafico-------------------------------------------------------#
+
+    xAchse=pylab.arange(0,100,1)
+    yAchse=pylab.array([0]*100)
+
+    fig = pylab.figure(1)
+    ax = fig.add_subplot(111)
+    ax.grid(True)
+    ax.set_xlabel("Tempo")
+    ax.set_ylabel("Frequência")
+    ax.axis([0,100, 50, 2000])
+    line1=ax.plot(xAchse,yAchse,'-')
+
+    canvas = FigureCanvasTkAgg(fig, master = graph_frame)
+    canvas.show()
+    canvas.get_tk_widget().place(x = 100, y = 50)
+
+    canvas._tkcanvas.place(x = 100, y = 25)
+
+    values=[]
+    values = [0 for x in range(100)]
+
+    Ta=0.01
+    fa=1.0/Ta
+    fcos=3.5
+
+    Konstant=1
+    T0=1.0
+    T1=Konstant
+
+    freq_list = []
+
+    def SinwaveformGenerator():
+      global values,T1,Konstant,T0,wScale2
+      #ohmegaCos=arccos(T1)/Ta
+      #print "fcos=", ohmegaCos/(2*pi), "Hz"
+
+      Tnext=((Konstant*T1)*2)-T0 
+      if (len(values)%100>70):
+          try:
+              values.append(random.random())
+          except:
+              raise
+      else:
+          values.append(Tnext)
+      T0=T1
+      T1=Tnext
+      root.after(int(wScale2['to'])-wScale2.get(),SinwaveformGenerator)
+
+    def RealtimePloter():
+      global values,wScale,wScale2
+      NumberSamples=min(len(values),wScale.get())
+      CurrentXAxis=pylab.arange(len(values)-NumberSamples,len(values),1)
+      line1[0].set_data(CurrentXAxis,pylab.array(values[-NumberSamples:]))
+      ax.axis([CurrentXAxis.min(),CurrentXAxis.max(),50, 2000])
+      canvas.draw()
+      root.after(25,RealtimePloter)
+      #canvas.draw()
+
+      #manager.show()    
+
+    wScale = Scale(master=root,label="View Width:", from_=3, to=1000,sliderlength=30, orient=HORIZONTAL)
+    wScale2 = Scale(master=root,label="Generation Speed:", from_=1, to=200,sliderlength=30, orient=HORIZONTAL)
+
+    wScale.set(100)
+    wScale2.set(wScale2['to']-10)
+
+    #--------------------------------------------------------------------------
+    #fecha a janela
+    def _quit():
+        root.quit()    
+        root.destroy()
+
+    #funcões com elementos (inner widgets) da janela
+    @jit
+    def entries_window(pitch, note, sing_state):
+        #exibidor do pitch
+        pitch_value.set(pitch)
+        show_pitch = ttk.Entry(sing_frame, textvariable = pitch_value, state = 'readonly')
+        show_pitch.place(x = 120, y = 58.5)
+
+        #exibidor da nota
+        note_value.set(note)
+        show_note = ttk.Entry(sing_frame, textvariable = note_value, state = 'readonly')
+        show_note.place(x = 120, y = 135)
+
+        #exibidor da performance das notas do cantor
+        no_tone_deaf.set(sing_state)
+        show_tone_deaf = ttk.Entry(sing_frame, textvariable = no_tone_deaf, state = 'readonly')
+        show_tone_deaf.place(x = 170, y = 211.5)
+    entries_window(None, None, None)
+
+    #@jit
+    def window():
+        #labels
+        #label PITCH
+        pitch_title = ttk.Label(sing_frame, text = "Pitch:", font = "Verdana 20", background='#d9d9d9')
+        pitch_title.place(x = 30, y = 50)
+
+        #label NOTE
+        note_title = ttk.Label(sing_frame, text = "Nota:", font = "Verdana 21", background='#d9d9d9')
+        note_title.place(x = 30, y = 126)
+
+        #label AFINACAO
+        tune_title = ttk.Label(sing_frame, text = "Afinação", font = "Verdana 21", background='#d9d9d9')
+        tune_title.place(x = 30, y = 202)
+        #------------------------
+
+        #botões
+        #botao SAIR
+        record = ttk.Button(sing_frame, text = 'Sair', command=_quit) 
+        record.place(x = 70, y = 300)
+
+        """#botao STOP
+        stop_button = ttk.Button(sing_frame, text = 'Parar')
+        stop_button.place(x = 160, y = 300)"""
+    window()
+
+
+    regex_note = re.compile(r"^([A-Gb#]*-?[0-9]*)([?+-]?)(.*?%?)$")
+    upd_time_in_ms = 200
+
+    # atualiza as funcoes
+    def upd_value():
+        pitches = iter(pitch_from_mic(upd_time_in_ms))
+        while not root.should_finish:
+            root.value = next(pitches)
+
+    #atualiza os valores da janela
+    #@jit
+    def upd_timer(): 
+        note_value.set("\n".join(regex_note.findall(root.value)[0]))
+        tunes = iter(pitch_tune(upd_time_in_ms))
+        tuning = next(tunes)
+        no_tone_deaf.set(str("\n".join(regex_note.findall(tuning)[0])))
+        pitch_value.set(real_freq())
+        root.after(upd_time_in_ms, upd_timer)
+        root.after(1, SinwaveformGenerator)
+        root.after(1 ,RealtimePloter)
+
+    # inicia as threads
+    root.should_finish = False
+    root.value = freq2str(0)
+    note_value.set(root.value)
+    root.upd_thread = threading.Thread(target=upd_value)
+
+
+    #acaba o programa e as threads
+    root.protocol("WM_DELETE_WINDOW", _quit)
+    root.after_idle(upd_timer)
+    root.upd_thread.start()
+    root.mainloop()
+    root.should_finish = True
+    root.upd_thread.join()

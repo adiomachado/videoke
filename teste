@@ -1,0 +1,36 @@
+import tkinter as tk
+from tkinter import filedialog
+import moviepy.editor as mp
+import librosa
+import numpy as np
+
+# Função para abrir um arquivo e extrair o áudio
+def abrir_arquivo():
+    caminho_arquivo = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
+    if caminho_arquivo:
+        # Extrair o áudio do arquivo MP4
+        video = mp.VideoFileClip(caminho_arquivo)
+        audio = video.audio
+        caminho_audio = "audio_temp.wav"
+        audio.write_audiofile(caminho_audio)
+
+        # Analisar a afinação do áudio
+        y, sr = librosa.load(caminho_audio)
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+        pitches = pitches[np.nonzero(pitches)]  # Filtrar valores zero
+        afinação_média = np.mean(pitches)
+
+        # Exibir resultado
+        resultado_label.config(text=f"Afinação média: {afinação_média:.2f} Hz")
+
+# Criando a interface do usuário com Tkinter
+root = tk.Tk()
+root.title("Verificador de Afinação de Voz")
+
+abrir_arquivo_botao = tk.Button(root, text="Abrir Arquivo MP4", command=abrir_arquivo)
+abrir_arquivo_botao.pack(pady=10)
+
+resultado_label = tk.Label(root, text="")
+resultado_label.pack(pady=10)
+
+root.mainloop()

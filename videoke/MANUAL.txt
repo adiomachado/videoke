@@ -1,0 +1,34 @@
+MANUAL DE INSTALAÇÃO DO HD-VIDEOKÊ
+Software Só funciona no Windows. Não funciona no Mac, Linux, Android.
+1) Configure o PC ou Notebook com a resolução 1024 x 968
+1.1) Para configurar clique com o botão direito do mouse na tela e selecione resolução. No windows 10 vai em configurações e procure por video
+
+2) Após conectar o HD, abrir a pasta VIDEOKE
+
+3) Clicar 2 vezes no arquivo GERADOR. Vai abrir uma janela 
+3.1) Clicar em Ler numero HD;
+3.2) Clicar em Encryptar
+3.3) Vai gerar um codigo serial logo abaixo, Copie esse codigo com caracteres selecionando e apertando CTRL+C;
+3.4) Feche a Janela
+
+4) Clicar 2 vezes no arquivo registrar
+4.1) Colar o codigo copiado na janela (CTRL+V)
+4.2) Clicar em confirmar
+
+5) Clicar com o botão direito do mouse em Karaokê.mp4 e selecionar Enviar para área de trabalho
+
+Vai criar um atalho com o nome Karaokê na sua área de trabalho, só dar 2 cliques e começar a brincar!!!
+
+ATENÇÃO! Este produto é protegido contra as leis de pirataria, você pode levar o HD-VIDEOKÊ e instalar em qualquer computador, mas nunca, em tempo algum
+poderá copiar o conteúdo e software a outro computador.
+
+COMANDOS PARA OPERAÇÃO DO VIDEOKE
+
+PARA INSERIR A MÚSICA DIGITE O CODIGO E TECLE ENTER
+PARA POR MÚSICA NA FILA DE ESPERA, SÓ DIGITAR O CODIGO DA MUSICA E TECLAR ENTER APÓS A PRIMEIRA MÚSICA ESTIVER TOCANDO. PODE POR 10 NA FILA DE ESPERA
+AO ERRAR O CÓDIGO, ANTES DE TECLAR ENTER, DIGITE QUALQUER NUMERO QUE ELE APAGA TUDO PARA NOVA DIGITAÇÃO.
+PARA PARAR UMA MÚSICA QUE ESTÁ TOCANDO, TECLE A LETRA Q. VAI CANCELAR O QUE ESTÁ TOCANDO E INICIAR A MUSICA DA FILA
+
+QUANDO A MÚSICA ESTIVER TOCANDO, PARA AUMENTAR O VOLUME APERTAR A LETRA M, PARA DIMINUIR O VOLUME APERTAR A LETRA N.
+
+PARA ENCERRAR O SOFTWARE TECLE F12
