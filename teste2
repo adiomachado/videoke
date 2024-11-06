@@ -1,49 +1,38 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import filedialog
+import moviepy.editor as mp
+from moviepy.editor import VideoFileClip
+import pygame
+from moviepy.video.io.preview import preview
 
-# setup
-window = tk.Tk()
-window.geometry('600x400')
-window.title('Combo and Spin')
+# Função para abrir um arquivo e extrair o áudio
+def abrir_arquivo():
+    global video
+    caminho_arquivo = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
+    if caminho_arquivo:
+        video = mp.VideoFileClip(caminho_arquivo)
+        resultado_label.config(text="Arquivo carregado: " + caminho_arquivo)
 
-# Combobox
-items = ('Ice cream', 'Pizza', 'Broccoli')
-food_string = tk.StringVar(value = items[0])
-combo = ttk.Combobox(window, textvariable = food_string)
-combo['values'] = items
-# combo.configure(values = items)
-combo.pack()
+# Função para reproduzir o vídeo em velocidade reduzida
+def reproduzir_lento():
+    if video:
+        slow_video = video.fx(mp.vfx.speedx, 0.5)  # Reduz a velocidade para metade
+        preview(slow_video, audio=True)
 
-# events 
-combo.bind('<<ComboboxSelected>>', lambda event: combo_label.config(text = f'Selected value: {food_string.get()}'))
+# Criando a interface do usuário com Tkinter
+root = tk.Tk()
+root.title("Verificador de Afinação de Voz")
 
-combo_label = ttk.Label(window, text = 'a label')
-combo_label.pack()
+abrir_arquivo_botao = tk.Button(root, text="Abrir Arquivo MP4", command=abrir_arquivo)
+abrir_arquivo_botao.pack(pady=10)
 
-# Spinbox
-spin_int = tk.IntVar(value = 12)
-spin = ttk.Spinbox(
-	window, 
-	from_ = 3, 
-	to = 20, 
-	increment = 3, 
-	command = lambda: print(spin_int.get()),
-	textvariable = spin_int)
-spin.bind('<<Increment>>', lambda event: print('up'))
-spin.bind('<<Decrement>>', lambda event: print('down'))
-# spin['value'] = (1,2,3,4,5)
-spin.pack()
+reproduzir_lento_botao = tk.Button(root, text="Reproduzir Lento", command=reproduzir_lento)
+reproduzir_lento_botao.pack(pady=10)
 
-# exercise: 
-# create a spinbox that contains the letters A B C D E 
-# and print the value whenever the value is decreased
+resultado_label = tk.Label(root, text="")
+resultado_label.pack(pady=10)
 
-exercise_letters = ('A', 'B', 'C', 'D', 'E')
-exercise_string = tk.StringVar(value = exercise_letters[0])
-exercise_spin = ttk.Spinbox(window, textvariable = exercise_string, values = exercise_letters)
-exercise_spin.pack()
+# Variável global para armazenar o vídeo
+video = None
 
-exercise_spin.bind('<<Decrement>>', lambda event: print(exercise_string.get()))
-
-# run
-window.mainloop()
+root.mainloop()

@@ -1,36 +1,115 @@
 import tkinter as tk
 from tkinter import filedialog
 import moviepy.editor as mp
+from moviepy.editor import VideoFileClip
+import pyaudio
+import wave
 import librosa
 import numpy as np
+from threading import Thread
 
-# Função para abrir um arquivo e extrair o áudio
+# Função para abrir um arquivo MP4
 def abrir_arquivo():
+    global video, caminho_arquivo
     caminho_arquivo = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
     if caminho_arquivo:
-        # Extrair o áudio do arquivo MP4
-        video = mp.VideoFileClip(caminho_arquivo)
+        video = VideoFileClip(caminho_arquivo)
+        resultado_label.config(text="Arquivo carregado: " + caminho_arquivo)
+
+# Função para reproduzir o vídeo
+def reproduzir_video():
+    if video:
+        thread = Thread(target=video.preview)
+        thread.start()
+
+# Função para capturar áudio do microfone
+def capturar_audio():
+    CHUNK = 1024
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 44100
+    RECORD_SECONDS = 10
+    WAVE_OUTPUT_FILENAME = "voz_temp.wav"
+
+    p = pyaudio.PyAudio()
+
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
+
+    print("* Gravando áudio")
+
+    frames = []
+
+    for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+        data = stream.read(CHUNK)
+        frames.append(data)
+
+    print("* Gravação finalizada")
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+
+    wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(frames))
+    wf.close()
+
+# Função para analisar a afinação
+def analisar_afinacao():
+    if caminho_arquivo:
+        # Extrair o áudio do vídeo
+        video = VideoFileClip(caminho_arquivo)
         audio = video.audio
         caminho_audio = "audio_temp.wav"
         audio.write_audiofile(caminho_audio)
 
-        # Analisar a afinação do áudio
-        y, sr = librosa.load(caminho_audio)
-        pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
-        pitches = pitches[np.nonzero(pitches)]  # Filtrar valores zero
-        afinação_média = np.mean(pitches)
+        # Analisar a afinação do áudio do vídeo
+        y_video, sr_video = librosa.load(caminho_audio)
+        pitches_video, magnitudes_video = librosa.piptrack(y=y_video, sr=sr_video)
+        pitches_video = pitches_video[np.nonzero(pitches_video)]
+        afinacao_media_video = np.mean(pitches_video)
 
-        # Exibir resultado
-        resultado_label.config(text=f"Afinação média: {afinação_média:.2f} Hz")
+        # Analisar a afinação do áudio gravado
+        y_voz, sr_voz = librosa.load("voz_temp.wav")
+        pitches_voz, magnitudes_voz = librosa.piptrack(y=y_voz, sr=sr_voz)
+        pitches_voz = pitches_voz[np.nonzero(pitches_voz)]
+        afinacao_media_voz = np.mean(pitches_voz)
+
+        # Calcular a diferença de afinação
+        diferenca = abs(afinacao_media_video - afinacao_media_voz)
+        nota = max(0, 100 - diferenca)
+
+        resultado_label.config(text=f"Afinacao Media Video: {afinacao_media_video:.2f} Hz\n"
+                                    f"Afinacao Media Voz: {afinacao_media_voz:.2f} Hz\n"
+                                    f"Nota: {nota:.2f}")
 
 # Criando a interface do usuário com Tkinter
 root = tk.Tk()
-root.title("Verificador de Afinação de Voz")
+root.title("Karaokê com Análise de Afinação")
 
 abrir_arquivo_botao = tk.Button(root, text="Abrir Arquivo MP4", command=abrir_arquivo)
 abrir_arquivo_botao.pack(pady=10)
 
+reproduzir_video_botao = tk.Button(root, text="Reproduzir Vídeo", command=reproduzir_video)
+reproduzir_video_botao.pack(pady=10)
+
+gravar_audio_botao = tk.Button(root, text="Gravar Áudio", command=capturar_audio)
+gravar_audio_botao.pack(pady=10)
+
+analisar_afinacao_botao = tk.Button(root, text="Analisar Afinação", command=analisar_afinacao)
+analisar_afinacao_botao.pack(pady=10)
+
 resultado_label = tk.Label(root, text="")
 resultado_label.pack(pady=10)
+
+# Variáveis globais para armazenar o vídeo e caminho do arquivo
+video = None
+caminho_arquivo = ""
 
 root.mainloop()
